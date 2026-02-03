@@ -28,7 +28,6 @@ func main() {
 
 	srv := &http.Server{
 		Addr:    ":8085",
-		Handler: http.HandlerFunc(handler),
 	}
 
 	// Goroutine to listen for OS signals for graceful shutdown
@@ -47,6 +46,7 @@ func main() {
 		}
 	}()
 
+	http.HandleFunc("/rate-limit", handler)
 	log.Println("Server started on :8085")
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatalf("Server failed to start: %+v", err)

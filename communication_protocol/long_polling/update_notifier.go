@@ -60,22 +60,45 @@ func (un *UpdateNotifier) Stop() {
 // It should query your database for changes since the lastChecked time.
 // For demonstration, it simulates a check.
 func (un *UpdateNotifier) checkDatabaseForUpdates(lastChecked time.Time) (string, error) {
-	// TODO: Replace this with your actual database query.
-	// Example: Query a table for rows updated after 'lastChecked'.
+	// This expects a table like:
+	//   CREATE TABLE updates (
+	//     id SERIAL PRIMARY KEY,
+	//     message TEXT NOT NULL,
+	//     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	//   );
 
-	// Example for PostgreSQL:
-	// var count int
-	// err := un.db.QueryRow("SELECT COUNT(*) FROM your_table WHERE updated_at > $1", lastChecked).Scan(&count)
-	// if err != nil {
-	//	 return "", fmt.Errorf("failed to query database: %w", err)
-	// }
-	// if count > 0 {
-	//	 return fmt.Sprintf("New data available since %s", lastChecked.Format(time.RFC3339)), nil
-	// }
-
-	// For now, simulate an update.
-	if time.Since(lastChecked) > un.interval && time.Now().Second()%10 == 0 {
-		return fmt.Sprintf("Simulated data update at %s", time.Now().Format(time.RFC3339)), nil
+	rows, err := un.db.Query(
+		`SELECT message, created_at
+         FROM updates
+         WHERE created_at > $1
+         ORDER BY created_at ASC`,
+		lastChecked,
+	)
+	if err != nil {
+		return "", fmt.Errorf("failed to query database: %w", err)
 	}
-	return "", nil
+	defer rows.Close()
+
+	var latestMsg string
+	var latestTime time.Time
+
+	for rows.Next() {
+		var msg string
+		var createdAt time.Time
+		if err := rows.Scan(&msg, &createdAt); err != nil {
+			return "", fmt.Errorf("failed to scan row: %w", err)
+		}
+		latestMsg = msg
+		latestTime = createdAt
+	}
+
+	if err := rows.Err(); err != nil {
+		return "", fmt.Errorf("row iteration error: %w", err)
+	}
+
+	if latestMsg == "" {
+		return "", nil
+	}
+
+	return fmt.Sprintf("New data: %s (at %s)", latestMsg, latestTime.Format(time.RFC3339)), nil
 }

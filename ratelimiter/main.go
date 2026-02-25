@@ -12,11 +12,11 @@ import (
 	"github.com/poeticcode01/poc/ratelimiter/inmemory"
 )
 
-var limiter chan struct{}
+var limiter inmemory.RateLimiter
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	select {
-	case <-limiter:
+	case <-limiter.Tokens():
 		w.Write([]byte("OK"))
 	default:
 		w.WriteHeader(http.StatusTooManyRequests)
@@ -24,7 +24,11 @@ func handler(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	limiter = inmemory.NewRateLimiter(5, 10)
+	var err error
+	limiter, err = inmemory.NewRateLimiter(inmemory.AlgoTokenBucket, 5, 10)
+	if err != nil {
+		log.Fatalf("failed to create rate limiter: %v", err)
+	}
 
 	srv := &http.Server{
 		Addr:    ":8085",
